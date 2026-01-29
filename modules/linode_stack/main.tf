@@ -48,6 +48,7 @@ resource "linode_instance" "vm" {
     user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
       ssh_enable_password = var.ssh_enable_password
       ssh_root_password   = var.root_password
+      node_name           = each.key
     }))
   }
 
