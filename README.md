@@ -1,41 +1,34 @@
-# to start 
+# Linode Lab - Multi-Student Environments (Terraform)
 
+This repo lets you spin up **separate copies** of the same Linode lab for `student1` through `student5`.
+Each student has an **independent Terraform state file**, so applying for one student will not touch the others.
 
+## Quick start (choose a student)
+
+```bash
+cd envs/student3
 terraform init
-
-
-terraform plan
-
-
 terraform apply
+```
 
+Destroy only that student's lab:
 
-# to tear down
-
-
-terraform destroy -var-file=terraform.tfvars
-
-# or 
-
-
-terraform state list
-
-
-rm -rf .terraform .terraform.lock.hcl terraform.tfstate terraform.tfstate.backup
-
-
-terraform refresh
-
-
+```bash
+cd envs/student3
 terraform destroy
+```
 
+## Where state lives
 
+Local state files are stored in `state/`:
 
-# or
+- `state/student1.tfstate`
+- ...
+- `state/student5.tfstate`
 
+## Customizing uniqueness
 
-terraform apply
+Resource labels include `env_suffix` (e.g. `-student3`) so Linode label collisions are avoided.
 
-
-terraform destroy
-
+If you add new Linode resources that require unique names (instances, VPCs, subnets, volumes, etc.),
+append `${var.env_suffix}` to their labels too.

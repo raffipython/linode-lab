@@ -1,7 +1,3 @@
-provider "linode" {
-  token = var.linode_token
-}
-
 locals {
   # Define the lab: one VM per subnet, all in the same VPC.
   lab = {
@@ -21,7 +17,7 @@ locals {
 }
 
 resource "linode_vpc" "lab" {
-  label  = "tf-lab-vpc"
+  label  = "tf-lab-vpc${var.env_suffix}"
   region = var.region
 }
 
@@ -29,20 +25,20 @@ resource "linode_vpc_subnet" "subnet" {
   for_each = local.lab
 
   vpc_id = linode_vpc.lab.id
-  label  = "subnet-${each.key}"
+  label  = "subnet-${each.key}${var.env_suffix}"
   ipv4   = each.value.subnet_cidr
 }
 
 resource "linode_instance" "vm" {
   for_each = local.lab
 
-  label     = each.key
+  label     = "${each.key}${var.env_suffix}"
   region    = var.region
   image     = var.image
   type      = var.type
   root_pass = var.root_password
 
-  tags = ["terraform", "lab", each.key]
+  tags = ["terraform", "lab", each.key, trim(var.env_suffix, "-")]
 
   # SSH key auth (still enabled)
   authorized_keys = [local.ssh_pubkey_one_line]

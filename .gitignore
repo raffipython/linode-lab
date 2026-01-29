@@ -1,5 +1,22 @@
-terraform.tfstate
+# --- Terraform core ---
 .terraform/
+.terraform.lock.hcl
+
+# --- Terraform state ---
+*.tfstate
+*.tfstate.backup
+state/
+
+# --- Terraform variable files (secrets) ---
 terraform.tfvars
-terraform.tfstate
-terraform/terraform.tfstate.backup
+terraform.tfvars.json
+**/terraform.tfvars
+**/terraform.tfvars.json
+
+# --- Crash logs ---
+crash.log
+crash.*.log
+
+# --- CLI config ---
+.terraformrc
+terraform.rc
