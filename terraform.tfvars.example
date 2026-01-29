@@ -1,0 +1,9 @@
+linode_token   = "PASTE_TOKEN_HERE"
+root_password  = "ROOT_PASSWORD_HERE"
+ssh_pubkey_path = "~/.ssh/id_rsa.pub"
+
+# optional overrides:
+# region = "us-east"
+# image  = "linode/ubuntu22.04"
+# type   = "g6-nanode-1"
+
