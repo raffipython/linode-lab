@@ -17,7 +17,6 @@ module "stack" {
   source = "../../modules/linode_stack"
 
   env_suffix          = "-student3"
-  linode_token        = var.linode_token
   root_password       = var.root_password
   ssh_pubkey_path     = var.ssh_pubkey_path
   region              = var.region
