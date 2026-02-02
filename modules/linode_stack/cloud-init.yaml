@@ -1,6 +1,11 @@
 #cloud-config
 ssh_pwauth: ${ssh_enable_password}
 
+package_update: true
+packages:
+  - iptables
+  - tcpdump
+
 %{ if node_name == "node4" ~}
 package_update: true
 packages:
