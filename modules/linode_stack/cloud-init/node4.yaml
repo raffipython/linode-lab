@@ -1,0 +1,7 @@
+runcmd:
+  - echo "[node4] configuring routes" >> /root/router.log
+
+  # Route everything beyond vlan30 via node3
+  - ip route replace 10.10.10.0/24 via ${NODE3_VLAN30_IP} dev eth1
+  - ip route replace 10.10.20.0/24 via ${NODE3_VLAN30_IP} dev eth1
+  - systemctl enable --now apache2

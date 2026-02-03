@@ -1,13 +1,42 @@
+###############################################################################
+# VLAN-based "chain" topology (no VPC):
+# node1: eth1  10.10.10.X/24
+# node2: eth1  10.10.10.X/24, eth2 10.10.20.X/24
+# node3: eth1  10.10.20.X/24, eth2 10.10.30.X/24
+# node4: eth1  10.10.30.X/24
+#
+# 4th octet randomized 5-250 EVERY apply.
+#
+# All nodes have PUBLIC IPs for now.
+###############################################################################
+
 locals {
-  # Define the lab: one VM per subnet, all in the same VPC.
-  lab = {
-    node1 = { subnet_cidr = "10.0.1.0/24", vpc_ip = "10.0.1.10" }
-    node2 = { subnet_cidr = "10.0.2.0/24", vpc_ip = "10.0.2.10" }
-    node3 = { subnet_cidr = "10.0.3.0/24", vpc_ip = "10.0.3.10" }
-    node4 = { subnet_cidr = "10.0.4.0/24", vpc_ip = "10.0.4.10" }
+  # VLAN networks
+  nets = {
+    vlan10 = { base = "10.10.10", cidr = 24 }
+    vlan20 = { base = "10.10.20", cidr = 24 }
+    vlan30 = { base = "10.10.30", cidr = 24 }
   }
 
-  # Robust: take ONLY the first non-empty line of the pubkey and strip CRLF.
+  # Node membership
+  lab = {
+    node1 = { vlans = ["vlan10"],           cloud_init = "${path.module}/cloud-init/node1.yaml" }
+    node2 = { vlans = ["vlan10","vlan20"],  cloud_init = "${path.module}/cloud-init/node2.yaml" }
+    node3 = { vlans = ["vlan20","vlan30"],  cloud_init = "${path.module}/cloud-init/node3.yaml" }
+    node4 = { vlans = ["vlan30"],           cloud_init = "${path.module}/cloud-init/node4.yaml" }
+  }
+
+  # Force re-randomization every apply
+  ip_roll = timestamp()
+
+  # VLAN labels
+  vlan_label = {
+    vlan10 = "${trim(var.env_suffix, "-")}-vlan10"
+    vlan20 = "${trim(var.env_suffix, "-")}-vlan20"
+    vlan30 = "${trim(var.env_suffix, "-")}-vlan30"
+  }
+
+  # SSH public key (robust one-liner)
   ssh_pubkey_raw = file(pathexpand(var.ssh_pubkey_path))
   ssh_pubkey_one_line = replace(
     element(compact(split("\n", trimspace(local.ssh_pubkey_raw))), 0),
@@ -16,63 +45,115 @@ locals {
   )
 }
 
-resource "linode_vpc" "lab" {
-  label  = "tf-lab-vpc${var.env_suffix}"
-  region = var.region
+###############################################################################
+# Random 4th octet per (node, vlan)
+###############################################################################
+
+resource "random_integer" "octet" {
+  for_each = {
+    for pair in setproduct(keys(local.lab), keys(local.nets)) :
+    "${pair[0]}.${pair[1]}" => {
+      node = pair[0]
+      vlan = pair[1]
+    }
+    if contains(local.lab[pair[0]].vlans, pair[1])
+  }
+
+  min = 5
+  max = 250
+
+  keepers = {
+    roll = local.ip_roll
+  }
 }
 
-resource "linode_vpc_subnet" "subnet" {
-  for_each = local.lab
+###############################################################################
+# Build per-node VLAN IPAM map
+###############################################################################
 
-  vpc_id = linode_vpc.lab.id
-  label  = "subnet-${each.key}${var.env_suffix}"
-  ipv4   = each.value.subnet_cidr
+locals {
+  lab_with_ips = {
+    for node, cfg in local.lab :
+    node => {
+      cloud_init = cfg.cloud_init
+      vlan_ipam = {
+        for v in cfg.vlans :
+        v => format(
+          "%s.%d/%d",
+          local.nets[v].base,
+          random_integer.octet["${node}.${v}"].result,
+          local.nets[v].cidr
+        )
+      }
+    }
+  }
+
+  # Strip /CIDR for cloud-init routing
+  node_ip = {
+    for node, cfg in local.lab_with_ips :
+    node => {
+      for vlan, ipam in cfg.vlan_ipam :
+      vlan => split("/", ipam)[0]
+    }
+  }
 }
+
+###############################################################################
+# Linode instances
+###############################################################################
 
 resource "linode_instance" "vm" {
-  for_each = local.lab
+  for_each = local.lab_with_ips
 
-  label     = "${each.key}${var.env_suffix}"
+  label     = "${trim(var.env_suffix, "-")}-${each.key}"
   region    = var.region
   image     = var.image
   type      = var.type
   root_pass = var.root_password
 
-  tags = ["terraform", "lab", each.key, trim(var.env_suffix, "-")]
+  tags = [trim(var.env_suffix, "-")]
 
-  # SSH key auth (still enabled)
   authorized_keys = [local.ssh_pubkey_one_line]
 
-  # Enable password SSH + set root password at first boot (cloud-init)
   metadata {
-    user_data = base64encode(templatefile("${path.module}/cloud-init.yaml", {
-      ssh_enable_password = var.ssh_enable_password
-      ssh_root_password   = var.root_password
-      node_name           = each.key
-    }))
+    user_data = base64encode(join("\n", [
+      templatefile("${path.module}/cloud-init/base.yaml", {
+        ssh_enable_password = var.ssh_enable_password
+        ssh_root_password   = var.root_password
+        node_name           = each.key
+      }),
+      templatefile(each.value.cloud_init, {
+        node_name = each.key
+
+        NODE1_VLAN10_IP = try(local.node_ip["node1"]["vlan10"], "")
+        NODE2_VLAN10_IP = try(local.node_ip["node2"]["vlan10"], "")
+        NODE2_VLAN20_IP = try(local.node_ip["node2"]["vlan20"], "")
+        NODE3_VLAN20_IP = try(local.node_ip["node3"]["vlan20"], "")
+        NODE3_VLAN30_IP = try(local.node_ip["node3"]["vlan30"], "")
+      })
+    ]))
   }
 
-  # Public interface (SSH from your laptop)
+  # Public interface (ALL nodes)
   interface {
     purpose = "public"
     primary = true
   }
 
-  # VPC interface (private subnet + fixed private IP)
-  interface {
-    purpose   = "vpc"
-    primary   = false
-    subnet_id = linode_vpc_subnet.subnet[each.key].id
-
-    ipv4 {
-      vpc = each.value.vpc_ip
+  # VLAN interfaces
+  dynamic "interface" {
+    for_each = each.value.vlan_ipam
+    content {
+      purpose      = "vlan"
+      label        = local.vlan_label[interface.key]
+      ipam_address = interface.value
     }
   }
 
   lifecycle {
     precondition {
       condition     = length(local.ssh_pubkey_one_line) > 0
-      error_message = "ssh_pubkey_path is empty/invalid. Point it to a real one-line *.pub file."
+      error_message = "ssh_pubkey_path is empty or invalid."
     }
   }
 }

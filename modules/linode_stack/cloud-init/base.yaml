@@ -5,12 +5,7 @@ package_update: true
 packages:
   - iptables
   - tcpdump
-
-%{ if node_name == "node4" ~}
-package_update: true
-packages:
   - apache2
-%{ endif ~}
 
 chpasswd:
   expire: false
@@ -23,6 +18,3 @@ runcmd:
   - sed -i 's/^#\?PasswordAuthentication.*/PasswordAuthentication yes/' /etc/ssh/sshd_config
   - sed -i 's/^#\?PermitRootLogin.*/PermitRootLogin yes/' /etc/ssh/sshd_config
   - systemctl restart ssh
-%{ if node_name == "node4" ~}
-  - systemctl enable --now apache2
-%{ endif ~}

@@ -1,0 +1,15 @@
+runcmd:
+  - echo "[node2] enabling routing" >> /root/router.log
+
+  # Enable IPv4 forwarding
+  - sysctl -w net.ipv4.ip_forward=1
+  - sed -i '/^net.ipv4.ip_forward/d' /etc/sysctl.conf
+  - echo 'net.ipv4.ip_forward=1' >> /etc/sysctl.conf
+
+  # Allow forwarding between VLANs
+  - iptables -P FORWARD ACCEPT
+  - iptables -A FORWARD -i eth1 -o eth2 -j ACCEPT
+  - iptables -A FORWARD -i eth2 -o eth1 -j ACCEPT
+
+  # Route vlan30 via node3 (over vlan20)
+  - ip route replace 10.10.30.0/24 via ${NODE3_VLAN20_IP} dev eth2

@@ -6,13 +6,12 @@ output "public_ipv4" {
   }
 }
 
-
-output "vpc_ipv4" {
-  description = "Private VPC IPv4 addresses"
-  value       = { for k, v in local.lab : k => v.vpc_ip }
+output "vlan_ipv4" {
+  description = "Per node, VLAN IPAM addresses (ip/cidr) per VLAN"
+  value       = { for node, cfg in local.lab_with_ips : node => cfg.vlan_ipam }
 }
 
-output "subnets" {
-  description = "Subnet CIDRs"
-  value       = { for k, v in local.lab : k => v.subnet_cidr }
+output "vlan_networks" {
+  description = "VLAN networks"
+  value       = { for name, n in local.nets : name => "${n.base}.0/${n.cidr}" }
 }
