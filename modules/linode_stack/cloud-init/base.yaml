@@ -1,12 +1,6 @@
 #cloud-config
 ssh_pwauth: ${ssh_enable_password}
 
-package_update: true
-packages:
-  - iptables
-  - tcpdump
-  - apache2
-
 chpasswd:
   expire: false
   users:

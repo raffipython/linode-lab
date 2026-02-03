@@ -4,3 +4,4 @@ runcmd:
   # Route everything beyond vlan10 via node2
   - ip route replace 10.10.20.0/24 via ${NODE2_VLAN10_IP} dev eth1
   - ip route replace 10.10.30.0/24 via ${NODE2_VLAN10_IP} dev eth1
+  - systemctl disable --now apache2

@@ -13,3 +13,4 @@ runcmd:
 
   # Route vlan10 via node2 (over vlan20)
   - ip route replace 10.10.10.0/24 via ${NODE2_VLAN20_IP} dev eth1
+  - systemctl disable --now apache2
